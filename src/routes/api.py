@@ -1,6 +1,5 @@
 """API routes for MCP discovery."""
 
-import json
 import logging
 from typing import Annotated, Any
 
@@ -31,12 +30,17 @@ async def list_servers(
 ) -> dict[str, Any]:
     """List all available MCP servers.
     
-    Authenticated users get subscription keys included.
+    Authenticated users get their per-user key status included.
     """
-    include_credentials = user is not None
-    
     servers = registry.get_active()
-    
+
+    user_keys: dict[str, dict] = {}
+    if user:
+        from src.main import cosmos_store
+
+        records = await cosmos_store.get_user_keys(user["user_id"])
+        user_keys = {r["server_id"]: r for r in records}
+
     return {
         "servers": [
             {
@@ -48,7 +52,8 @@ async def list_servers(
                 "transport": s.transport,
                 "capabilities": s.capabilities or [],
                 "status": s.status,
-                "subscription_key": s.subscription_key if include_credentials else None,
+                "has_key": s.id in user_keys and user_keys[s.id].get("state") == "active",
+                "key_hint": user_keys[s.id].get("key_hint") if s.id in user_keys else None,
             }
             for s in servers
         ],
@@ -65,9 +70,23 @@ async def get_server(
     server = registry.get_by_id(server_id)
     if not server:
         raise HTTPException(status_code=404, detail="Server not found")
-    
-    include_credentials = user is not None
-    
+
+    key_record: dict | None = None
+    per_user_key: str | None = None
+    if user:
+        from src.main import apim_manager, cosmos_store
+
+        key_record = await cosmos_store.get_user_key(user["user_id"], server_id)
+        if key_record and key_record.get("state") == "active":
+            per_user_key = await apim_manager.get_key(user["user_id"], server_id)
+
+    configs = None
+    if user and per_user_key:
+        configs = {
+            "claude_desktop": server.to_claude_config(key_override=per_user_key),
+            "vscode": server.to_vscode_config(key_override=per_user_key),
+        }
+
     return {
         "id": server.id,
         "name": server.name,
@@ -78,11 +97,9 @@ async def get_server(
         "transport": server.transport,
         "capabilities": server.capabilities or [],
         "status": server.status,
-        "subscription_key": server.subscription_key if include_credentials else None,
-        "configs": {
-            "claude_desktop": server.to_claude_config() if include_credentials else None,
-            "vscode": server.to_vscode_config() if include_credentials else None,
-        } if include_credentials else None,
+        "has_key": bool(per_user_key),
+        "key_hint": key_record.get("key_hint") if key_record else None,
+        "configs": configs,
     }
 
 
@@ -90,25 +107,28 @@ async def get_server(
 async def claude_desktop_config(
     user: Annotated[dict | None, Depends(get_current_user)],
 ) -> JSONResponse:
-    """Get complete Claude Desktop config for all servers.
+    """Get complete Claude Desktop config for all servers using per-user keys.
     
     Requires authentication.
     """
     if not user:
         raise HTTPException(status_code=401, detail="Authentication required")
     
+    from src.main import apim_manager, cosmos_store
+
     servers = registry.get_active()
+    user_keys = await cosmos_store.get_user_keys(user["user_id"])
+    active_keys = {r["server_id"]: r for r in user_keys if r.get("state") == "active"}
     
-    config = {
-        "mcpServers": {
-            s.id: s.to_claude_config()
-            for s in servers
-            if s.subscription_key
-        }
-    }
-    
+    mcp_servers: dict[str, Any] = {}
+    for s in servers:
+        if s.id in active_keys:
+            key = await apim_manager.get_key(user["user_id"], s.id)
+            if key:
+                mcp_servers[s.id] = s.to_claude_config(key_override=key)
+
     return JSONResponse(
-        content=config,
+        content={"mcpServers": mcp_servers},
         headers={"Content-Type": "application/json"},
     )
 
@@ -117,25 +137,28 @@ async def claude_desktop_config(
 async def vscode_config(
     user: Annotated[dict | None, Depends(get_current_user)],
 ) -> JSONResponse:
-    """Get VS Code MCP config for all servers.
+    """Get VS Code MCP config for all servers using per-user keys.
     
     Requires authentication.
     """
     if not user:
         raise HTTPException(status_code=401, detail="Authentication required")
     
+    from src.main import apim_manager, cosmos_store
+
     servers = registry.get_active()
+    user_keys = await cosmos_store.get_user_keys(user["user_id"])
+    active_keys = {r["server_id"]: r for r in user_keys if r.get("state") == "active"}
     
-    config = {
-        "servers": {
-            s.id: s.to_vscode_config()
-            for s in servers
-            if s.subscription_key
-        }
-    }
-    
+    server_configs: dict[str, Any] = {}
+    for s in servers:
+        if s.id in active_keys:
+            key = await apim_manager.get_key(user["user_id"], s.id)
+            if key:
+                server_configs[s.id] = s.to_vscode_config(key_override=key)
+
     return JSONResponse(
-        content=config,
+        content={"servers": server_configs},
         headers={"Content-Type": "application/json"},
     )
 

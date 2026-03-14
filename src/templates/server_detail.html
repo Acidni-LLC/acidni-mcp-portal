@@ -58,26 +58,53 @@
             </button>
         </div>
         
-        <!-- API Key -->
+        <!-- API Key (Per-User) -->
         <div class="glass-effect rounded-xl p-6">
             <h2 class="font-semibold text-lg mb-4 flex items-center">
-                <span class="mr-2">🔑</span> Subscription Key
+                <span class="mr-2">🔑</span> Your Subscription Key
             </h2>
-            {% if server.subscription_key %}
+            {% if per_user_key %}
             <div class="bg-black/30 rounded-lg p-4 mb-3">
-                <code class="code-block text-yellow-400 break-all">{{ server.subscription_key }}</code>
+                <code class="code-block text-yellow-400 break-all">{{ per_user_key }}</code>
             </div>
-            <button onclick="copyToClipboard('{{ server.subscription_key }}', this)"
-                    class="copy-btn px-4 py-2 rounded-lg bg-acidni-highlight hover:bg-red-500 transition-colors text-sm">
-                Copy Key
+            <div class="flex space-x-3">
+                <button onclick="copyToClipboard('{{ per_user_key }}', this)"
+                        class="copy-btn px-4 py-2 rounded-lg bg-acidni-highlight hover:bg-red-500 transition-colors text-sm">
+                    Copy Key
+                </button>
+                <button hx-post="/api/keys/{{ server.id }}/rotate"
+                        hx-swap="none"
+                        hx-confirm="Rotate your key for {{ server.name }}? The old key will stop working immediately."
+                        class="px-4 py-2 rounded-lg bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 text-sm transition-colors">
+                    Rotate Key
+                </button>
+                <button hx-delete="/api/keys/{{ server.id }}"
+                        hx-swap="none"
+                        hx-confirm="Revoke your key for {{ server.name }}? You will lose access until you generate a new one."
+                        class="px-4 py-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 text-sm transition-colors">
+                    Revoke
+                </button>
+            </div>
+            {% elif key_record and key_record.state == 'revoked' %}
+            <p class="text-red-400 text-sm mb-3">Your key has been revoked.</p>
+            <button hx-post="/api/keys/{{ server.id }}"
+                    hx-swap="none"
+                    class="px-4 py-2 rounded-lg bg-acidni-highlight hover:bg-red-500 transition-colors text-sm">
+                Generate New Key
             </button>
             {% else %}
-            <p class="text-white/50">No subscription key available.</p>
+            <p class="text-white/50 text-sm mb-3">You haven't generated a key for this server yet.</p>
+            <button hx-post="/api/keys/{{ server.id }}"
+                    hx-swap="none"
+                    class="px-4 py-2 rounded-lg bg-acidni-highlight hover:bg-red-500 transition-colors text-sm">
+                Generate Key
+            </button>
             {% endif %}
         </div>
     </div>
     
-    <!-- Configuration Snippets -->
+    <!-- Configuration Snippets (only shown when user has a key) -->
+    {% if per_user_key %}
     <div class="glass-effect rounded-xl p-6">
         <h2 class="font-semibold text-lg mb-4 flex items-center">
             <span class="mr-2">📋</span> Configuration Snippets
@@ -88,7 +115,7 @@
             <div>
                 <h3 class="text-sm font-medium text-acidni-highlight mb-2">Claude Desktop (claude_desktop_config.json)</h3>
                 <div class="bg-black/30 rounded-lg p-4 relative">
-                    <pre class="code-block text-white/80 overflow-x-auto" id="claude-config">{{ server.to_claude_config() | tojson(indent=2) }}</pre>
+                    <pre class="code-block text-white/80 overflow-x-auto" id="claude-config">{{ server.to_claude_config(key_override=per_user_key) | tojson(indent=2) }}</pre>
                     <button onclick="copyToClipboard(document.getElementById('claude-config').innerText, this)"
                             class="copy-btn absolute top-2 right-2 px-3 py-1 rounded bg-white/10 hover:bg-white/20 text-xs">
                         Copy
@@ -100,7 +127,7 @@
             <div>
                 <h3 class="text-sm font-medium text-acidni-highlight mb-2">VS Code (.vscode/mcp.json)</h3>
                 <div class="bg-black/30 rounded-lg p-4 relative">
-                    <pre class="code-block text-white/80 overflow-x-auto" id="vscode-config">{{ server.to_vscode_config() | tojson(indent=2) }}</pre>
+                    <pre class="code-block text-white/80 overflow-x-auto" id="vscode-config">{{ server.to_vscode_config(key_override=per_user_key) | tojson(indent=2) }}</pre>
                     <button onclick="copyToClipboard(document.getElementById('vscode-config').innerText, this)"
                             class="copy-btn absolute top-2 right-2 px-3 py-1 rounded bg-white/10 hover:bg-white/20 text-xs">
                         Copy
@@ -112,7 +139,7 @@
             <div>
                 <h3 class="text-sm font-medium text-acidni-highlight mb-2">cURL (Test Connection)</h3>
                 <div class="bg-black/30 rounded-lg p-4 relative">
-                    <pre class="code-block text-white/80 overflow-x-auto" id="curl-cmd">curl -H "Ocp-Apim-Subscription-Key: {{ server.subscription_key }}" {{ server.url }}</pre>
+                    <pre class="code-block text-white/80 overflow-x-auto" id="curl-cmd">curl -H "Ocp-Apim-Subscription-Key: {{ per_user_key }}" {{ server.url }}</pre>
                     <button onclick="copyToClipboard(document.getElementById('curl-cmd').innerText, this)"
                             class="copy-btn absolute top-2 right-2 px-3 py-1 rounded bg-white/10 hover:bg-white/20 text-xs">
                         Copy
@@ -121,6 +148,11 @@
             </div>
         </div>
     </div>
+    {% else %}
+    <div class="glass-effect rounded-xl p-6 text-center">
+        <p class="text-white/50">Generate a key above to see configuration snippets for Claude Desktop, VS Code, and cURL.</p>
+    </div>
+    {% endif %}
     
     <!-- Capabilities -->
     {% if server.capabilities %}
@@ -178,6 +210,18 @@ document.body.addEventListener('htmx:afterSwap', function(evt) {
             }
         } catch(e) {
             evt.detail.target.innerHTML = '<span class="text-white/30">Status unavailable</span>';
+        }
+    }
+});
+
+// Reload page after key operations (generate, rotate, revoke)
+document.body.addEventListener('htmx:afterRequest', function(evt) {
+    const path = evt.detail.pathInfo?.requestPath || '';
+    if (path.startsWith('/api/keys/')) {
+        if (evt.detail.successful) {
+            window.location.reload();
+        } else {
+            alert('Key operation failed. Please try again.');
         }
     }
 });

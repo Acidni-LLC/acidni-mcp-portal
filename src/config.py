@@ -36,11 +36,14 @@ class Settings(BaseSettings):
     azure_client_secret: str = ""
 
     # Cosmos DB
-    cosmos_endpoint: str = ""
+    cosmos_endpoint: str = "https://acidni-cosmos-dev.documents.azure.com:443/"
     cosmos_database: str = "mcp-portal-dev"
 
     # APIM
     apim_base_url: str = "https://api.acidni.net"
+    azure_subscription_id: str = "bb40fccf-9ffa-4bad-b9c0-ea40e326882c"
+    apim_resource_group: str = "rg-terprint-apim-dev"
+    apim_service_name: str = "apim-terprint-dev"
 
     # OpenTelemetry
     otel_service_name: str = "acidni-mcp-portal"

@@ -31,10 +31,9 @@
     <!-- Server Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         {% for server in servers %}
-        <div class="server-card glass-effect rounded-xl p-6 cursor-pointer"
-             onclick="window.location='/server/{{ server.id }}'">
+        <div class="server-card glass-effect rounded-xl p-6">
             <div class="flex items-start justify-between mb-4">
-                <div class="flex items-center space-x-3">
+                <div class="flex items-center space-x-3 cursor-pointer" onclick="window.location='/server/{{ server.id }}'">
                     <span class="text-3xl">{{ server.icon or '🔌' }}</span>
                     <div>
                         <h3 class="font-semibold text-lg">{{ server.name }}</h3>
@@ -56,7 +55,7 @@
                 </div>
             </div>
             
-            <p class="text-white/60 text-sm mb-4">{{ server.description }}</p>
+            <p class="text-white/60 text-sm mb-4 cursor-pointer" onclick="window.location='/server/{{ server.id }}'">{{ server.description }}</p>
             
             <!-- Capabilities -->
             {% if server.capabilities %}
@@ -74,13 +73,55 @@
             </div>
             {% endif %}
             
-            <!-- Quick URL copy -->
-            <div class="flex items-center justify-between text-sm">
-                <code class="text-white/40 truncate max-w-[70%]">{{ server.url }}</code>
-                <button onclick="event.stopPropagation(); copyToClipboard('{{ server.url }}', this)"
-                        class="copy-btn px-3 py-1 rounded bg-white/10 hover:bg-white/20 text-white/70">
-                    Copy URL
-                </button>
+            <!-- Key Management Row -->
+            {% set kr = key_map.get(server.id) %}
+            <div class="border-t border-white/10 pt-4 mt-2">
+                {% if kr and kr.state == 'active' %}
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-2">
+                        <span class="w-2 h-2 rounded-full bg-green-400"></span>
+                        <span class="text-sm text-green-400">Key active</span>
+                        <code class="text-xs text-white/40 ml-2">{{ kr.key_hint }}</code>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button hx-post="/api/keys/{{ server.id }}/rotate"
+                                hx-swap="none"
+                                hx-confirm="Rotate your key for {{ server.name }}? The old key will stop working immediately."
+                                onclick="event.stopPropagation()"
+                                class="px-3 py-1 rounded bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 text-xs transition-colors">
+                            Rotate
+                        </button>
+                        <a href="/server/{{ server.id }}"
+                           onclick="event.stopPropagation()"
+                           class="px-3 py-1 rounded bg-white/10 hover:bg-white/20 text-white/70 text-xs transition-colors">
+                            View Key
+                        </a>
+                    </div>
+                </div>
+                {% elif kr and kr.state == 'revoked' %}
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-2">
+                        <span class="w-2 h-2 rounded-full bg-red-400"></span>
+                        <span class="text-sm text-red-400">Key revoked</span>
+                    </div>
+                    <button hx-post="/api/keys/{{ server.id }}"
+                            hx-swap="none"
+                            onclick="event.stopPropagation()"
+                            class="px-3 py-1 rounded bg-acidni-highlight/80 hover:bg-acidni-highlight text-white text-xs transition-colors">
+                        Generate New Key
+                    </button>
+                </div>
+                {% else %}
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-white/40">No key generated</span>
+                    <button hx-post="/api/keys/{{ server.id }}"
+                            hx-swap="none"
+                            onclick="event.stopPropagation()"
+                            class="px-3 py-1 rounded bg-acidni-highlight/80 hover:bg-acidni-highlight text-white text-xs transition-colors">
+                        Generate Key
+                    </button>
+                </div>
+                {% endif %}
             </div>
         </div>
         {% endfor %}
@@ -130,6 +171,18 @@ document.body.addEventListener('htmx:afterSwap', function(evt) {
             }
         } catch(e) {
             evt.detail.target.innerHTML = '<span class="text-white/30 text-sm">-</span>';
+        }
+    }
+});
+
+// Reload page after key operations (generate, rotate, revoke)
+document.body.addEventListener('htmx:afterRequest', function(evt) {
+    const path = evt.detail.pathInfo?.requestPath || '';
+    if (path.startsWith('/api/keys/')) {
+        if (evt.detail.successful) {
+            window.location.reload();
+        } else {
+            alert('Key operation failed. Please try again.');
         }
     }
 });

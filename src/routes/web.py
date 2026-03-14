@@ -97,7 +97,11 @@ async def dashboard(
     if not user:
         return RedirectResponse(url="/login", status_code=302)
     
+    from src.main import cosmos_store
+
     servers = registry.get_active()
+    user_keys = await cosmos_store.get_user_keys(user["user_id"])
+    key_map = {r["server_id"]: r for r in user_keys}
     
     return templates.TemplateResponse(
         request=request,
@@ -105,6 +109,7 @@ async def dashboard(
         context={
             "user": user,
             "servers": servers,
+            "key_map": key_map,
             "settings": settings,
         },
     )
@@ -123,13 +128,22 @@ async def server_detail(
     server = registry.get_by_id(server_id)
     if not server:
         return RedirectResponse(url="/dashboard", status_code=302)
-    
+
+    from src.main import apim_manager, cosmos_store
+
+    key_record = await cosmos_store.get_user_key(user["user_id"], server_id)
+    per_user_key: str | None = None
+    if key_record and key_record.get("state") == "active":
+        per_user_key = await apim_manager.get_key(user["user_id"], server_id)
+
     return templates.TemplateResponse(
         request=request,
         name="server_detail.html",
         context={
             "user": user,
             "server": server,
+            "key_record": key_record,
+            "per_user_key": per_user_key,
             "settings": settings,
         },
     )
