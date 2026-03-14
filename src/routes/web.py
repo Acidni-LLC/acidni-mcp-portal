@@ -56,7 +56,9 @@ async def login(request: Request) -> RedirectResponse:
 async def auth_callback(request: Request) -> RedirectResponse:
     """Handle OAuth callback from Entra ID."""
     try:
-        user_data = await auth_service.handle_callback(request)
+        # Retrieve the state from the cookie to look up the pending flow
+        state = request.cookies.get("auth_state", "")
+        user_data = await auth_service.handle_callback(request, state=state)
         session_token = auth_service.create_session_token(user_data)
         
         response = RedirectResponse(url="/dashboard", status_code=302)

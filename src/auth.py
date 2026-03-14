@@ -20,6 +20,7 @@ class AuthService:
         """Initialize the auth service."""
         self._msal_app: msal.ConfidentialClientApplication | None = None
         self._serializer = URLSafeSerializer(settings.secret_key, salt="session")
+        self._pending_flows: dict[str, dict] = {}
 
     @property
     def msal_app(self) -> msal.ConfidentialClientApplication:
@@ -32,45 +33,48 @@ class AuthService:
             )
         return self._msal_app
 
-    def get_auth_url(self, state: str | None = None) -> str:
+    def get_auth_url(self, state: str) -> str:
         """Generate the authorization URL for login.
         
         Args:
-            state: Optional state parameter for CSRF protection
+            state: State parameter for CSRF protection and flow lookup
             
         Returns:
             Authorization URL to redirect user to
         """
-        scopes = ["User.Read"]  # Basic profile info
-        
+        scopes = ["User.Read"]
+
         flow = self.msal_app.initiate_auth_code_flow(
             scopes=scopes,
             redirect_uri=settings.redirect_uri,
             state=state,
         )
-        
+
+        # Store the flow so the callback can complete it
+        self._pending_flows[state] = flow
+
         return flow.get("auth_uri", "")
 
-    async def handle_callback(self, request: Request) -> dict[str, Any]:
+    async def handle_callback(self, request: Request, state: str) -> dict[str, Any]:
         """Handle the OAuth callback and get user info.
         
         Args:
             request: FastAPI request with auth code
+            state: The state parameter to look up the original flow
             
         Returns:
             User information dict
         """
-        # Get the code from query params
-        code = request.query_params.get("code")
-        if not code:
-            raise HTTPException(status_code=400, detail="No authorization code provided")
+        flow = self._pending_flows.pop(state, None)
+        if flow is None:
+            raise HTTPException(status_code=400, detail="Auth session expired or invalid state")
 
-        # Exchange code for token
-        scopes = ["User.Read"]
-        result = self.msal_app.acquire_token_by_authorization_code(
-            code=code,
-            scopes=scopes,
-            redirect_uri=settings.redirect_uri,
+        # Convert query params to dict for MSAL
+        auth_response = dict(request.query_params)
+
+        result = self.msal_app.acquire_token_by_auth_code_flow(
+            auth_code_flow=flow,
+            auth_response=auth_response,
         )
 
         if "error" in result:
@@ -84,7 +88,7 @@ class AuthService:
         claims = result.get("id_token_claims", {})
         
         return {
-            "user_id": claims.get("oid"),  # Object ID
+            "user_id": claims.get("oid"),
             "email": claims.get("preferred_username"),
             "name": claims.get("name"),
             "tenant_id": claims.get("tid"),
