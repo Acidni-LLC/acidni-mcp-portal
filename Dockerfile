@@ -5,14 +5,15 @@ WORKDIR /app
 # Install UV for fast dependency installation
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-# Copy dependency files
-COPY pyproject.toml ./
-
-# Install dependencies
-RUN uv pip install --system --no-cache -e .
-
-# Copy application
+# Copy all source files (needed for hatchling build)
+COPY pyproject.toml README.md ./
 COPY src/ ./src/
+
+# Install dependencies (non-editable for container)
+RUN uv pip install --system --no-cache .
+
+# Copy application (already done above, but ensures templates are included)
+# COPY src/ ./src/
 
 # Create non-root user
 RUN groupadd -r app && useradd -r -g app app
