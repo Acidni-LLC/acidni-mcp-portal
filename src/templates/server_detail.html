@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+
+{% block title %}{{ server.name }}{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+    <!-- Back link -->
+    <a href="/dashboard" class="inline-flex items-center text-white/60 hover:text-white transition-colors">
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+        </svg>
+        Back to Dashboard
+    </a>
+    
+    <!-- Server Header -->
+    <div class="glass-effect rounded-xl p-6">
+        <div class="flex items-start justify-between">
+            <div class="flex items-center space-x-4">
+                <span class="text-5xl">{{ server.icon or '🔌' }}</span>
+                <div>
+                    <h1 class="text-3xl font-bold mb-1">{{ server.name }}</h1>
+                    <p class="text-white/60">{{ server.description }}</p>
+                    <div class="mt-2 flex items-center space-x-3">
+                        <span class="text-xs px-2 py-0.5 rounded-full 
+                                     {% if server.status == 'active' %}bg-green-500/20 text-green-400
+                                     {% elif server.status == 'maintenance' %}bg-yellow-500/20 text-yellow-400
+                                     {% else %}bg-red-500/20 text-red-400{% endif %}">
+                            {{ server.status }}
+                        </span>
+                        <span class="text-xs text-white/40">Transport: {{ server.transport }}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Health Check -->
+            <div hx-get="/api/health/{{ server.id }}"
+                 hx-trigger="load"
+                 hx-swap="innerHTML"
+                 class="health-indicator text-right">
+                <span class="text-white/30">Checking health...</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Connection Details -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Server URL -->
+        <div class="glass-effect rounded-xl p-6">
+            <h2 class="font-semibold text-lg mb-4 flex items-center">
+                <span class="mr-2">🔗</span> Server URL
+            </h2>
+            <div class="bg-black/30 rounded-lg p-4 mb-3">
+                <code class="code-block text-green-400 break-all">{{ server.url }}</code>
+            </div>
+            <button onclick="copyToClipboard('{{ server.url }}', this)"
+                    class="copy-btn px-4 py-2 rounded-lg bg-acidni-highlight hover:bg-red-500 transition-colors text-sm">
+                Copy URL
+            </button>
+        </div>
+        
+        <!-- API Key -->
+        <div class="glass-effect rounded-xl p-6">
+            <h2 class="font-semibold text-lg mb-4 flex items-center">
+                <span class="mr-2">🔑</span> Subscription Key
+            </h2>
+            {% if server.subscription_key %}
+            <div class="bg-black/30 rounded-lg p-4 mb-3">
+                <code class="code-block text-yellow-400 break-all">{{ server.subscription_key }}</code>
+            </div>
+            <button onclick="copyToClipboard('{{ server.subscription_key }}', this)"
+                    class="copy-btn px-4 py-2 rounded-lg bg-acidni-highlight hover:bg-red-500 transition-colors text-sm">
+                Copy Key
+            </button>
+            {% else %}
+            <p class="text-white/50">No subscription key available.</p>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Configuration Snippets -->
+    <div class="glass-effect rounded-xl p-6">
+        <h2 class="font-semibold text-lg mb-4 flex items-center">
+            <span class="mr-2">📋</span> Configuration Snippets
+        </h2>
+        
+        <div class="space-y-6">
+            <!-- Claude Desktop -->
+            <div>
+                <h3 class="text-sm font-medium text-acidni-highlight mb-2">Claude Desktop (claude_desktop_config.json)</h3>
+                <div class="bg-black/30 rounded-lg p-4 relative">
+                    <pre class="code-block text-white/80 overflow-x-auto" id="claude-config">{{ server.to_claude_config() | tojson(indent=2) }}</pre>
+                    <button onclick="copyToClipboard(document.getElementById('claude-config').innerText, this)"
+                            class="copy-btn absolute top-2 right-2 px-3 py-1 rounded bg-white/10 hover:bg-white/20 text-xs">
+                        Copy
+                    </button>
+                </div>
+            </div>
+            
+            <!-- VS Code -->
+            <div>
+                <h3 class="text-sm font-medium text-acidni-highlight mb-2">VS Code (.vscode/mcp.json)</h3>
+                <div class="bg-black/30 rounded-lg p-4 relative">
+                    <pre class="code-block text-white/80 overflow-x-auto" id="vscode-config">{{ server.to_vscode_config() | tojson(indent=2) }}</pre>
+                    <button onclick="copyToClipboard(document.getElementById('vscode-config').innerText, this)"
+                            class="copy-btn absolute top-2 right-2 px-3 py-1 rounded bg-white/10 hover:bg-white/20 text-xs">
+                        Copy
+                    </button>
+                </div>
+            </div>
+            
+            <!-- cURL -->
+            <div>
+                <h3 class="text-sm font-medium text-acidni-highlight mb-2">cURL (Test Connection)</h3>
+                <div class="bg-black/30 rounded-lg p-4 relative">
+                    <pre class="code-block text-white/80 overflow-x-auto" id="curl-cmd">curl -H "Ocp-Apim-Subscription-Key: {{ server.subscription_key }}" {{ server.url }}</pre>
+                    <button onclick="copyToClipboard(document.getElementById('curl-cmd').innerText, this)"
+                            class="copy-btn absolute top-2 right-2 px-3 py-1 rounded bg-white/10 hover:bg-white/20 text-xs">
+                        Copy
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Capabilities -->
+    {% if server.capabilities %}
+    <div class="glass-effect rounded-xl p-6">
+        <h2 class="font-semibold text-lg mb-4 flex items-center">
+            <span class="mr-2">⚡</span> Capabilities
+        </h2>
+        <div class="flex flex-wrap gap-2">
+            {% for cap in server.capabilities %}
+            <span class="px-3 py-1 rounded-lg bg-white/10 text-white/80 text-sm">
+                {{ cap }}
+            </span>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{% block extra_scripts %}
+<script>
+// Health check display
+document.body.addEventListener('htmx:afterSwap', function(evt) {
+    if (evt.detail.target.classList.contains('health-indicator')) {
+        try {
+            const data = JSON.parse(evt.detail.target.innerText);
+            if (data.status === 'healthy') {
+                evt.detail.target.innerHTML = `
+                    <div class="text-green-400">
+                        <div class="flex items-center justify-end">
+                            <span class="w-3 h-3 rounded-full bg-green-400 mr-2 animate-pulse"></span>
+                            <span class="font-medium">Healthy</span>
+                        </div>
+                        ${data.response_time_ms ? '<div class="text-xs text-white/40 mt-1">' + Math.round(data.response_time_ms) + 'ms</div>' : ''}
+                    </div>
+                `;
+            } else if (data.status === 'unhealthy') {
+                evt.detail.target.innerHTML = `
+                    <div class="text-red-400">
+                        <div class="flex items-center justify-end">
+                            <span class="w-3 h-3 rounded-full bg-red-400 mr-2"></span>
+                            <span class="font-medium">Unhealthy</span>
+                        </div>
+                        <div class="text-xs text-white/40 mt-1">HTTP ${data.http_status || 'error'}</div>
+                    </div>
+                `;
+            } else {
+                evt.detail.target.innerHTML = `
+                    <div class="text-yellow-400">
+                        <div class="flex items-center justify-end">
+                            <span class="w-3 h-3 rounded-full bg-yellow-400 mr-2"></span>
+                            <span class="font-medium">${data.status}</span>
+                        </div>
+                    </div>
+                `;
+            }
+        } catch(e) {
+            evt.detail.target.innerHTML = '<span class="text-white/30">Status unavailable</span>';
+        }
+    }
+});
+</script>
+{% endblock %}
+{% endblock %}

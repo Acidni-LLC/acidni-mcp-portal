@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+    <!-- Welcome Header -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+        <div>
+            <h1 class="text-3xl font-bold mb-2">Welcome, {{ user.name or 'User' }}!</h1>
+            <p class="text-white/60">Manage your MCP server connections</p>
+        </div>
+        
+        <!-- Quick Actions -->
+        <div class="mt-4 sm:mt-0 flex space-x-3">
+            <a href="/api/configs/claude-desktop" 
+               target="_blank"
+               class="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors text-sm flex items-center space-x-2">
+                <span>📥</span>
+                <span>Export All (Claude)</span>
+            </a>
+            <a href="/api/configs/vscode"
+               target="_blank"
+               class="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors text-sm flex items-center space-x-2">
+                <span>📥</span>
+                <span>Export All (VS Code)</span>
+            </a>
+        </div>
+    </div>
+    
+    <!-- Server Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {% for server in servers %}
+        <div class="server-card glass-effect rounded-xl p-6 cursor-pointer"
+             onclick="window.location='/server/{{ server.id }}'">
+            <div class="flex items-start justify-between mb-4">
+                <div class="flex items-center space-x-3">
+                    <span class="text-3xl">{{ server.icon or '🔌' }}</span>
+                    <div>
+                        <h3 class="font-semibold text-lg">{{ server.name }}</h3>
+                        <span class="text-xs px-2 py-0.5 rounded-full 
+                                     {% if server.status == 'active' %}bg-green-500/20 text-green-400
+                                     {% elif server.status == 'maintenance' %}bg-yellow-500/20 text-yellow-400
+                                     {% else %}bg-red-500/20 text-red-400{% endif %}">
+                            {{ server.status }}
+                        </span>
+                    </div>
+                </div>
+                
+                <!-- Health indicator (loaded via HTMX) -->
+                <div hx-get="/api/health/{{ server.id }}"
+                     hx-trigger="load"
+                     hx-swap="innerHTML"
+                     class="health-indicator">
+                    <span class="text-white/30 text-sm">Checking...</span>
+                </div>
+            </div>
+            
+            <p class="text-white/60 text-sm mb-4">{{ server.description }}</p>
+            
+            <!-- Capabilities -->
+            {% if server.capabilities %}
+            <div class="flex flex-wrap gap-2 mb-4">
+                {% for cap in server.capabilities[:3] %}
+                <span class="text-xs px-2 py-1 rounded bg-white/10 text-white/70">
+                    {{ cap }}
+                </span>
+                {% endfor %}
+                {% if server.capabilities|length > 3 %}
+                <span class="text-xs px-2 py-1 rounded bg-white/10 text-white/50">
+                    +{{ server.capabilities|length - 3 }} more
+                </span>
+                {% endif %}
+            </div>
+            {% endif %}
+            
+            <!-- Quick URL copy -->
+            <div class="flex items-center justify-between text-sm">
+                <code class="text-white/40 truncate max-w-[70%]">{{ server.url }}</code>
+                <button onclick="event.stopPropagation(); copyToClipboard('{{ server.url }}', this)"
+                        class="copy-btn px-3 py-1 rounded bg-white/10 hover:bg-white/20 text-white/70">
+                    Copy URL
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <!-- Help Section -->
+    <div class="glass-effect rounded-xl p-6 mt-8">
+        <h2 class="font-semibold text-lg mb-4">🚀 Quick Start Guide</h2>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+            <div>
+                <h3 class="font-medium mb-2 text-acidni-highlight">Claude Desktop</h3>
+                <ol class="list-decimal list-inside text-white/70 space-y-1">
+                    <li>Click "Export All (Claude)" above</li>
+                    <li>Open Claude Desktop settings</li>
+                    <li>Paste the config into <code class="bg-white/10 px-1 rounded">claude_desktop_config.json</code></li>
+                    <li>Restart Claude Desktop</li>
+                </ol>
+            </div>
+            
+            <div>
+                <h3 class="font-medium mb-2 text-acidni-highlight">VS Code / GitHub Copilot</h3>
+                <ol class="list-decimal list-inside text-white/70 space-y-1">
+                    <li>Click "Export All (VS Code)" above</li>
+                    <li>Add to your workspace's <code class="bg-white/10 px-1 rounded">.vscode/mcp.json</code></li>
+                    <li>Or add to user settings</li>
+                    <li>Reload VS Code</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_scripts %}
+<script>
+// Replace health check response with styled indicator
+document.body.addEventListener('htmx:afterSwap', function(evt) {
+    if (evt.detail.target.classList.contains('health-indicator')) {
+        try {
+            const data = JSON.parse(evt.detail.target.innerText);
+            if (data.status === 'healthy') {
+                evt.detail.target.innerHTML = '<span class="flex items-center text-green-400 text-sm"><span class="w-2 h-2 rounded-full bg-green-400 mr-2 animate-pulse"></span>Healthy</span>';
+            } else if (data.status === 'unhealthy') {
+                evt.detail.target.innerHTML = '<span class="flex items-center text-red-400 text-sm"><span class="w-2 h-2 rounded-full bg-red-400 mr-2"></span>Unhealthy</span>';
+            } else {
+                evt.detail.target.innerHTML = '<span class="flex items-center text-yellow-400 text-sm"><span class="w-2 h-2 rounded-full bg-yellow-400 mr-2"></span>Unknown</span>';
+            }
+        } catch(e) {
+            evt.detail.target.innerHTML = '<span class="text-white/30 text-sm">-</span>';
+        }
+    }
+});
+</script>
+{% endblock %}
+{% endblock %}

@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Welcome{% endblock %}
+
+{% block content %}
+<div class="flex flex-col items-center justify-center min-h-[70vh] text-center">
+    <!-- Hero -->
+    <div class="mb-8">
+        <span class="text-7xl mb-4 block">🔌</span>
+        <h1 class="text-4xl sm:text-5xl font-bold mb-4 bg-gradient-to-r from-white to-acidni-highlight bg-clip-text text-transparent">
+            Acidni MCP Portal
+        </h1>
+        <p class="text-xl text-white/70 max-w-2xl mx-auto">
+            Your gateway to Acidni's Model Context Protocol servers.
+            Connect your AI assistants to powerful data sources.
+        </p>
+    </div>
+    
+    <!-- Features -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12 max-w-4xl">
+        <div class="glass-effect rounded-xl p-6 text-left">
+            <span class="text-3xl mb-3 block">🔍</span>
+            <h3 class="font-semibold text-lg mb-2">Auto-Discovery</h3>
+            <p class="text-white/60 text-sm">
+                MCP clients can automatically discover available servers via our discovery endpoint.
+            </p>
+        </div>
+        
+        <div class="glass-effect rounded-xl p-6 text-left">
+            <span class="text-3xl mb-3 block">📋</span>
+            <h3 class="font-semibold text-lg mb-2">Easy Configuration</h3>
+            <p class="text-white/60 text-sm">
+                Get copy-paste configs for Claude Desktop, VS Code, and other MCP clients.
+            </p>
+        </div>
+        
+        <div class="glass-effect rounded-xl p-6 text-left">
+            <span class="text-3xl mb-3 block">🔐</span>
+            <h3 class="font-semibold text-lg mb-2">Secure Access</h3>
+            <p class="text-white/60 text-sm">
+                Sign in with your Microsoft account to access your API keys and server credentials.
+            </p>
+        </div>
+    </div>
+    
+    <!-- CTA -->
+    <a href="/login"
+       class="px-8 py-4 rounded-xl bg-acidni-highlight hover:bg-red-500 transition-all text-lg font-semibold shadow-lg hover:shadow-acidni-highlight/30">
+        Sign In with Microsoft
+    </a>
+    
+    <!-- Discovery Info -->
+    <div class="mt-12 text-white/50 text-sm">
+        <p>Discovery endpoint: <code class="bg-white/10 px-2 py-1 rounded">https://mcp.acidni.net/.well-known/mcp</code></p>
+    </div>
+</div>
+
+{% if request.query_params.get('error') %}
+<div class="fixed bottom-4 right-4 bg-red-500/90 text-white px-6 py-3 rounded-lg shadow-lg">
+    Authentication failed. Please try again.
+</div>
+{% endif %}
+{% endblock %}
