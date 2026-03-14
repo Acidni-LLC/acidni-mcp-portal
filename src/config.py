@@ -17,7 +17,7 @@ class Settings(BaseSettings):
 
     # App
     app_name: str = "Acidni MCP Portal"
-    app_version: str = "0.1.0"
+    app_version: str = "0.1.1"
     environment: str = "development"
     debug: bool = False
     secret_key: str = "change-me-in-production"
