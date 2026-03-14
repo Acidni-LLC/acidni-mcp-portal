@@ -52,9 +52,12 @@ class MCPServer:
         
         return result
 
-    def to_claude_config(self) -> dict[str, Any]:
+    def to_claude_config(self, key_override: str | None = None) -> dict[str, Any]:
         """Convert to Claude Desktop config format.
         
+        Args:
+            key_override: Per-user key to use instead of the shared key.
+            
         Returns:
             Claude Desktop mcpServers entry
         """
@@ -63,16 +66,20 @@ class MCPServer:
             "args": ["-y", "mcp-remote", self.url],
         }
         
-        if self.subscription_key:
+        key = key_override or self.subscription_key
+        if key:
             config["env"] = {
-                "MCP_HEADERS": f"Ocp-Apim-Subscription-Key:{self.subscription_key}"
+                "MCP_HEADERS": f"Ocp-Apim-Subscription-Key:{key}"
             }
         
         return config
 
-    def to_vscode_config(self) -> dict[str, Any]:
+    def to_vscode_config(self, key_override: str | None = None) -> dict[str, Any]:
         """Convert to VS Code MCP config format.
         
+        Args:
+            key_override: Per-user key to use instead of the shared key.
+            
         Returns:
             VS Code mcp.json entry
         """
@@ -81,9 +88,10 @@ class MCPServer:
             "url": self.url,
         }
         
-        if self.subscription_key:
+        key = key_override or self.subscription_key
+        if key:
             config["headers"] = {
-                "Ocp-Apim-Subscription-Key": self.subscription_key
+                "Ocp-Apim-Subscription-Key": key
             }
         
         return config

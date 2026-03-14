@@ -15,7 +15,9 @@ from fastapi.staticfiles import StaticFiles
 
 from src.config import settings
 from src.registry import registry
-from src.routes import api_router, web_router
+from src.routes import api_router, keys_router, web_router
+from src.services.cosmos_client import CosmosKeyStore
+from src.services.key_manager import APIMKeyManager
 
 # Configure logging
 logging.basicConfig(
@@ -24,6 +26,10 @@ logging.basicConfig(
     stream=sys.stdout,
 )
 logger = logging.getLogger(__name__)
+
+# Module-level service instances (initialized in lifespan)
+cosmos_store: CosmosKeyStore
+apim_manager: APIMKeyManager
 
 
 def load_secrets_from_keyvault() -> None:
@@ -108,6 +114,8 @@ def setup_telemetry() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan handler."""
+    global cosmos_store, apim_manager
+
     logger.info(f"Starting {settings.app_name} v{settings.app_version}")
     logger.info(f"Environment: {settings.environment}")
 
@@ -117,8 +125,25 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Setup telemetry
     setup_telemetry()
 
+    # Initialize per-user key services
+    cosmos_store = CosmosKeyStore(
+        endpoint=settings.cosmos_endpoint,
+        database_name=settings.cosmos_database,
+    )
+    await cosmos_store.initialize()
+
+    apim_manager = APIMKeyManager(
+        subscription_id=settings.azure_subscription_id,
+        resource_group=settings.apim_resource_group,
+        service_name=settings.apim_service_name,
+    )
+    await apim_manager.initialize()
+
     logger.info("Application startup complete")
     yield
+
+    await cosmos_store.close()
+    await apim_manager.close()
     logger.info("Application shutdown")
 
 
@@ -150,6 +175,7 @@ except Exception:
 # Include routers
 app.include_router(web_router)
 app.include_router(api_router)
+app.include_router(keys_router)
 
 
 @app.get("/health")
