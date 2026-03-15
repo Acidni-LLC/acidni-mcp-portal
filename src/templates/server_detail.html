@@ -21,15 +21,8 @@
                     <h1 class="text-3xl font-bold mb-1">{{ server.name }}</h1>
                     <p class="text-white/60">{{ server.description }}</p>
                     <div class="mt-2 flex items-center space-x-3">
-                        <span class="text-xs px-2 py-0.5 rounded-full 
-                                     {% if server.status == 'active' %}bg-green-500/20 text-green-400
-                                     {% elif server.status == 'partial' %}bg-yellow-500/20 text-yellow-400
-                                     {% elif server.status == 'maintenance' %}bg-yellow-500/20 text-yellow-400
-                                     {% elif server.status == 'down' %}bg-red-500/20 text-red-400
-                                     {% else %}bg-red-500/20 text-red-400{% endif %}">
-                            {% if server.status == 'partial' %}Partial - Server Up, Some APIs Down
-                            {% elif server.status == 'down' %}Offline
-                            {% else %}{{ server.status }}{% endif %}
+                        <span id="status-badge-{{ server.id }}" class="text-xs px-2 py-0.5 rounded-full bg-white/10 text-white/40">
+                            checking...
                         </span>
                         <span class="text-xs text-white/40">Transport: {{ server.transport }}</span>
                         {% if server.tools %}
@@ -226,11 +219,15 @@
 
 {% block extra_scripts %}
 <script>
-// Health check display
+// Health check display + badge update
 document.body.addEventListener('htmx:afterSwap', function(evt) {
     if (evt.detail.target.classList.contains('health-indicator')) {
         try {
             const data = JSON.parse(evt.detail.target.innerText);
+            const path = evt.detail.pathInfo?.requestPath || '';
+            const serverId = path.split('/').pop();
+            const badge = serverId ? document.getElementById('status-badge-' + serverId) : null;
+
             if (data.status === 'healthy') {
                 evt.detail.target.innerHTML = `
                     <div class="text-green-400">
@@ -241,6 +238,10 @@ document.body.addEventListener('htmx:afterSwap', function(evt) {
                         ${data.response_time_ms ? '<div class="text-xs text-white/40 mt-1">' + Math.round(data.response_time_ms) + 'ms</div>' : ''}
                     </div>
                 `;
+                if (badge) {
+                    badge.className = 'text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400';
+                    badge.textContent = 'active';
+                }
             } else if (data.status === 'unhealthy') {
                 evt.detail.target.innerHTML = `
                     <div class="text-red-400">
@@ -251,6 +252,10 @@ document.body.addEventListener('htmx:afterSwap', function(evt) {
                         <div class="text-xs text-white/40 mt-1">HTTP ${data.http_status || 'error'}</div>
                     </div>
                 `;
+                if (badge) {
+                    badge.className = 'text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-400';
+                    badge.textContent = 'offline';
+                }
             } else {
                 evt.detail.target.innerHTML = `
                     <div class="text-yellow-400">
@@ -260,6 +265,10 @@ document.body.addEventListener('htmx:afterSwap', function(evt) {
                         </div>
                     </div>
                 `;
+                if (badge) {
+                    badge.className = 'text-xs px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400';
+                    badge.textContent = 'degraded';
+                }
             }
         } catch(e) {
             evt.detail.target.innerHTML = '<span class="text-white/30">Status unavailable</span>';

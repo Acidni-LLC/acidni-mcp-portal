@@ -135,12 +135,6 @@ class MCPRegistry:
                     "search_dispensaries",
                     "search_strains",
                 ],
-                status="partial",
-                known_issues=[
-                    "Data endpoints returning 404 - backend data services need verification",
-                    "Check: Terprint data Container Apps (ca-terprint-data, etc.)",
-                    "Check: APIM backend routing for /data, /recommend paths",
-                ],
             ),
             MCPServer(
                 id="sdo-mcp",
@@ -202,12 +196,6 @@ class MCPRegistry:
                     "list_devices",
                     "list_genstart_devices",
                 ],
-                status="partial",
-                known_issues=[
-                    "Most endpoints returning 404 - backend Container Apps may be scaled to 0",
-                    "list_genstart_devices returned 401 - APIM subscription key may need refresh",
-                    "Check: ca-solar-web, ca-solar-collector replica counts",
-                ],
             ),
             MCPServer(
                 id="repolens-mcp",
@@ -226,12 +214,6 @@ class MCPRegistry:
                     "get_pr_diff",
                     "get_pull_requests",
                     "get_repo_overview",
-                ],
-                status="down",
-                known_issues=[
-                    "Server not responding - no RFC 7807 errors, just empty responses",
-                    "May need restart or redeployment via GitHub Actions",
-                    "Check: RepoLens Container App process health",
                 ],
             ),
         ]
